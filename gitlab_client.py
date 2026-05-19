@@ -269,6 +269,76 @@ def send_slack_notification(webhook_url: str, message: str) -> bool:
         return False
 
 
+def send_teams_notification(webhook_url: str, stale_mrs: list) -> bool:
+    """
+    Send a rich Adaptive Card to Microsoft Teams via Incoming Webhook connector.
+    webhook_url must start with https://...webhook.office.com/... or
+    https://outlook.office.com/webhook/...
+
+    Each MR becomes a section in the MessageCard.
+    """
+    try:
+        if not stale_mrs:
+            payload = {
+                "@type": "MessageCard",
+                "@context": "https://schema.org/extensions",
+                "themeColor": "00B050",
+                "summary": "Sin MRs obsoletas",
+                "title": "git-jira-tracker — Sin MRs obsoletas",
+                "text": "Todas las MRs tienen actividad reciente.",
+            }
+            resp = requests.post(webhook_url, json=payload, timeout=TIMEOUT)
+            return resp.status_code in (200, 202)
+
+        sections = []
+        for mr in stale_mrs:
+            title = mr.get("title", "Sin título")
+            jira_key = mr.get("jira_key", "")
+            web_url = mr.get("web_url", "")
+            reviewer = mr.get("reviewer") or "Sin asignar ⚠"
+            opened_h = mr.get("opened_hours")
+            last_h = mr.get("last_activity_hours")
+
+            def _fmt_h(h):
+                if h is None:
+                    return "?"
+                if h < 24:
+                    return f"{int(h)}h"
+                return f"{int(h / 24)}d {int(h % 24)}h"
+
+            facts = [
+                {"name": "Reviewer",        "value": reviewer},
+                {"name": "Abierta hace",    "value": _fmt_h(opened_h)},
+                {"name": "Último evento",   "value": f"hace {_fmt_h(last_h)}"},
+            ]
+            if web_url:
+                facts.append({"name": "URL", "value": f"[Abrir MR]({web_url})"})
+
+            prefix = f"[{jira_key}] " if jira_key else ""
+            sections.append({
+                "activityTitle": f"{prefix}{title}",
+                "activitySubtitle": f"Sin actividad hace **{_fmt_h(last_h)}**",
+                "facts": facts,
+                "markdown": True,
+            })
+
+        payload = {
+            "@type": "MessageCard",
+            "@context": "https://schema.org/extensions",
+            "themeColor": "FF4500",
+            "summary": f"{len(stale_mrs)} MR(s) sin actividad",
+            "title": f"git-jira-tracker — {len(stale_mrs)} MR(s) obsoleta(s)",
+            "text": "Las siguientes MRs llevan demasiado tiempo sin actividad:",
+            "sections": sections,
+        }
+        resp = requests.post(webhook_url, json=payload, timeout=TIMEOUT)
+        return resp.status_code in (200, 202)
+
+    except Exception as exc:
+        print(f"[teams] send failed: {exc}")
+        return False
+
+
 def send_email_notification(smtp_config: dict, subject: str, body: str) -> bool:
     """Send email using smtplib. smtp_config keys: host, port, user, password, to."""
     import smtplib

@@ -90,6 +90,39 @@ fi
 success "Dependencias instaladas: $REQS"
 
 # ─────────────────────────────────────────────────────────────────────────────
+header "2b. Instalando comando 'tracker' (pyproject.toml)..."
+# ─────────────────────────────────────────────────────────────────────────────
+# pip install -e . registers the 'tracker' console script globally.
+# The same venv / pip flags are used as in step 2.
+(
+    cd "$TRACKER_HOME"
+    "$PYTHON_CMD" -m pip install --quiet -e . 2>/dev/null \
+    || "$PYTHON_CMD" -m pip install --user --quiet -e . 2>/dev/null \
+    || true
+)
+# Verify the command is available
+if command -v tracker >/dev/null 2>&1; then
+    TRACKER_BIN="$(which tracker)"
+    success "Comando 'tracker' disponible: $TRACKER_BIN"
+    info    "Usa 'tracker doctor', 'tracker mr', 'tracker status', etc."
+else
+    # It may be in ~/.local/bin — check and suggest PATH fix
+    LOCAL_BIN="$HOME/.local/bin"
+    if [ -f "$LOCAL_BIN/tracker" ]; then
+        success "Comando instalado en $LOCAL_BIN/tracker"
+        warn    "'$LOCAL_BIN' no está en tu PATH."
+        warn    "Añade esto a ~/.zshrc o ~/.bashrc:"
+        warn    "  export PATH=\"\$HOME/.local/bin:\$PATH\""
+    elif [ -f "$VENV_DIR/bin/tracker" ]; then
+        success "Comando instalado en $VENV_DIR/bin/tracker"
+        warn    "Añade esto a ~/.zshrc o ~/.bashrc:"
+        warn    "  export PATH=\"$VENV_DIR/bin:\$PATH\""
+    else
+        warn "'tracker' no encontrado en PATH. Usa 'python tracker.py <cmd>' como alternativa."
+    fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
 header "3. Configuración de credenciales (.env)..."
 # ─────────────────────────────────────────────────────────────────────────────
 ENV_FILE="$TRACKER_HOME/.env"

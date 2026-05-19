@@ -134,42 +134,79 @@ def format_stale_report(stale_mrs: list[dict], stale_hours: float) -> str:
     return "\n".join(lines)
 
 
+def _is_teams_url(url: str) -> bool:
+    return ("webhook.office.com" in url or
+            "outlook.office.com/webhook" in url or
+            "teams.microsoft.com" in url)
+
+
+def _is_slack_url(url: str) -> bool:
+    return "hooks.slack.com" in url
+
+
 def notify_stale(stale_mrs: list[dict], stale_hours: float) -> bool:
     """
     Send notification about stale MRs via the configured channel.
+
+    Supported formats in config.json → notify_channel:
+      Slack:  https://hooks.slack.com/services/...
+      Teams:  https://xxx.webhook.office.com/webhookb2/...
+      Email:  smtp:host:port:user:password:to@example.com
+
     Returns True if notification was sent.
     """
     cfg = load_config()
     notify_channel = cfg.get("notify_channel", "")
 
     if not notify_channel:
-        print("[stale] notify_channel not configured in config.json")
+        print("[stale] notify_channel no configurado en config.json")
         return False
 
-    report = format_stale_report(stale_mrs, stale_hours)
-
-    # Slack webhook: starts with https://hooks.slack.com
-    if notify_channel.startswith("https://"):
-        ok = gl.send_slack_notification(notify_channel, report)
+    # ── Microsoft Teams ───────────────────────────────────────────────────────
+    if notify_channel.startswith("https://") and _is_teams_url(notify_channel):
+        ok = gl.send_teams_notification(notify_channel, stale_mrs)
         if ok:
-            print("[stale] Slack notification sent.")
+            print("[stale] Notificación Teams enviada.")
         else:
-            print("[stale] Slack notification failed.")
+            print("[stale] Error al enviar notificación a Teams.")
         return ok
 
-    # Email: "smtp:host:port:user:password:to"
+    # ── Slack ─────────────────────────────────────────────────────────────────
+    if notify_channel.startswith("https://") and _is_slack_url(notify_channel):
+        report = format_stale_report(stale_mrs, stale_hours)
+        ok = gl.send_slack_notification(notify_channel, report)
+        if ok:
+            print("[stale] Notificación Slack enviada.")
+        else:
+            print("[stale] Error al enviar notificación a Slack.")
+        return ok
+
+    # ── Generic HTTPS (Slack-compatible: any incoming webhook with {"text":…}) ─
+    if notify_channel.startswith("https://"):
+        report = format_stale_report(stale_mrs, stale_hours)
+        ok = gl.send_slack_notification(notify_channel, report)
+        print(f"[stale] Webhook genérico: {'OK' if ok else 'Error'}.")
+        return ok
+
+    # ── Email ─────────────────────────────────────────────────────────────────
     if notify_channel.startswith("smtp:"):
         parts = notify_channel.split(":", 5)
         if len(parts) == 6:
             _, host, port, user, password, to = parts
             smtp_cfg = {"host": host, "port": port, "user": user,
                         "password": password, "to": to}
-            ok = gl.send_email_notification(smtp_cfg, "MRs obsoletas — git-jira-tracker", report)
+            report = format_stale_report(stale_mrs, stale_hours)
+            ok = gl.send_email_notification(
+                smtp_cfg, "MRs obsoletas — git-jira-tracker", report)
             if ok:
-                print("[stale] Email notification sent.")
+                print("[stale] Email enviado.")
             else:
-                print("[stale] Email notification failed.")
+                print("[stale] Error al enviar email.")
             return ok
 
-    print(f"[stale] Unknown notify_channel format: {notify_channel}")
+    print(f"[stale] Formato de notify_channel no reconocido: {notify_channel}")
+    print("  Formatos soportados:")
+    print("    Slack:  https://hooks.slack.com/services/...")
+    print("    Teams:  https://xxx.webhook.office.com/webhookb2/...")
+    print("    Email:  smtp:host:puerto:usuario:contraseña:destino@email.com")
     return False

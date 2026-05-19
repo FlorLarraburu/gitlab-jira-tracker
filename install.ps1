@@ -61,6 +61,34 @@ try {
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
+Write-Header "2b. Instalando comando 'tracker' (pyproject.toml)..."
+# ─────────────────────────────────────────────────────────────────────────────
+Push-Location $TrackerHome
+try {
+    & $PythonCmd -m pip install --quiet -e . 2>$null
+    Write-Ok "pip install -e . completado"
+} catch {
+    Write-Warn "pip install -e . falló. Usa 'py tracker.py <cmd>' como alternativa."
+}
+Pop-Location
+
+# Check if tracker command is available
+$TrackerBin = Get-Command tracker -ErrorAction SilentlyContinue
+if ($TrackerBin) {
+    Write-Ok "Comando 'tracker' disponible: $($TrackerBin.Source)"
+    Write-Info "Usa: tracker doctor, tracker mr, tracker status, etc."
+} else {
+    # Check Scripts folder
+    $ScriptsDir = & $PythonCmd -c "import sys; print(sys.exec_prefix + '\\Scripts')" 2>$null
+    if ($ScriptsDir -and (Test-Path "$ScriptsDir\tracker.exe")) {
+        Write-Ok "tracker.exe instalado en $ScriptsDir"
+        Write-Warn "Añade '$ScriptsDir' a tu PATH si no está ya."
+    } else {
+        Write-Warn "'tracker' no encontrado en PATH. Usa 'py tracker.py <cmd>' como alternativa."
+    }
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
 Write-Header "3. Configuración de credenciales (.env)..."
 # ─────────────────────────────────────────────────────────────────────────────
 $EnvFile = Join-Path $TrackerHome ".env"

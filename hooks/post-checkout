@@ -13,6 +13,12 @@ BRANCH_FLAG="$3"
 # Only act on branch checkouts, not file checkouts
 [ "$BRANCH_FLAG" = "1" ] || exit 0
 
+# ── Capture repo root BEFORE any cd ──────────────────────────────────────────
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+PREV_BRANCH="$(git name-rev --name-only "$PREV_HEAD" 2>/dev/null \
+               | sed 's/~[0-9]*$//' | sed 's|remotes/[^/]*/||')"
+NEW_BRANCH="$(git branch --show-current 2>/dev/null)"
+
 # ── Locate Python ────────────────────────────────────────────────────────────
 find_python() {
     # Prefer venv python set by installer
@@ -41,14 +47,11 @@ find_python() {
 }
 
 PYTHON_CMD="$(find_python)"
-[ -n "$PYTHON_CMD" ] || exit 0   # Python not found — skip silently
+[ -n "$PYTHON_CMD" ] || exit 0
 
 # ── Locate tracker.py ────────────────────────────────────────────────────────
-# TRACKER_HOME is set by the installer; fallback to common locations
 if [ -z "$TRACKER_HOME" ]; then
-    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
     for candidate in \
-        "$REPO_ROOT/tracker.py" \
         "$HOME/git-jira-tracker/tracker.py" \
         "/usr/local/lib/git-jira-tracker/tracker.py"; do
         if [ -f "$candidate" ]; then
@@ -60,14 +63,11 @@ fi
 
 [ -n "$TRACKER_HOME" ] && [ -f "$TRACKER_HOME/tracker.py" ] || exit 0
 
-# ── Resolve branch names ──────────────────────────────────────────────────────
-PREV_BRANCH="$(git name-rev --name-only "$PREV_HEAD" 2>/dev/null | sed 's/~[0-9]*$//' | sed 's|remotes/[^/]*/||')"
-NEW_BRANCH="$(git branch --show-current 2>/dev/null)"
-
-# ── Run tracker (errors must not propagate) ───────────────────────────────────
+# ── Run tracker ───────────────────────────────────────────────────────────────
 (
     cd "$TRACKER_HOME" || exit 0
-    "$PYTHON_CMD" tracker.py _hook_checkout "$PREV_BRANCH" "$NEW_BRANCH" 2>/dev/null
+    "$PYTHON_CMD" tracker.py _hook_checkout \
+        "$PREV_BRANCH" "$NEW_BRANCH" "$REPO_ROOT" 2>/dev/null
 ) || true
 
 exit 0

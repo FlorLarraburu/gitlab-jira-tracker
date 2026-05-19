@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "git-jira-tracker"
+version = "1.0.0"
+description = "Automatización de flujo Git + GitLab + Jira"
+requires-python = ">=3.8"
+dependencies = ["requests>=2.28.0"]
+
+[project.scripts]
+tracker = "tracker:main"
+
+[tool.setuptools]
+py-modules = [
+  "tracker",
+  "jira_client",
+  "gitlab_client",
+  "mr_template",
+  "stack_manager",
+  "stale_checker",
+  "time_tracker",
+  "config_loader"
+]

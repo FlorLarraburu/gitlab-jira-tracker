@@ -149,8 +149,10 @@ El patrón es configurable en `config.json` (`branch_pattern`). Si la rama no ti
 
 ## Comandos disponibles
 
-### `python tracker.py status`
-Muestra el tiempo acumulado hoy por tarea y el tiempo de la sesión activa actual.
+Tras la instalación el comando es simplemente `tracker`. Si por algún motivo no está en el PATH, el fallback siempre es `python tracker.py <comando>`.
+
+### `tracker status`
+Muestra el tiempo acumulado hoy y la sesión activa en este momento.
 
 ```
 ── Tiempo acumulado hoy ──────────────────────
@@ -158,19 +160,56 @@ Muestra el tiempo acumulado hoy por tarea y el tiempo de la sesión activa actua
   QMS-456               45m
 
 ── Sesión activa ─────────────────────────────
-  Tarea:  QMS-123
-  Rama:   feature/QMS-123-login
-  Tiempo: 1h 30m
+  Tarea:   QMS-123
+  Rama:    feature/QMS-123-login
+  Repo:    mi-proyecto
+  Tiempo:  1h 30m
+```
+
+**Solo hay un timer activo a la vez.** Cuando haces `git checkout` en cualquier repo, el timer anterior se para (y el tiempo se imputa) y arranca el nuevo. Esto es así por diseño: si tienes dos proyectos abiertos en VS Code pero solo estás trabajando activamente en uno, no hay forma de saber cuál es sin monitorizar el foco de ventanas a nivel de sistema operativo — demasiado intrusivo. La señal explícita del `checkout` es la más fiable.
+
+---
+
+### `tracker doctor`
+Diagnóstico completo del entorno. Útil para onboarding y troubleshooting.
+
+```
+── git-jira-tracker doctor ───────────────────────────
+
+  ✓  Python                3.12.0
+  ✓  requests              2.31.0
+  ✓  .env                  /Users/user/git-jira-tracker/.env
+
+  ✓  JIRA_URL              https://miempresa.atlassian.net
+  ✓  JIRA_USER             user@email.com
+  ✓  JIRA_TOKEN            abcd************
+  ✓  GITLAB_URL            https://gitlab.miempresa.com
+  ✓  GITLAB_TOKEN          glpat***********
+  ✓  GITLAB_PROJECT_ID     123
+
+  ✓  Jira API              conectado como: Nombre Apellido
+  ✓  GitLab API            proyecto: miempresa/mi-repo
+
+  ✓  Repo actual           /Users/user/mi-proyecto
+  ✓  hook/post-checkout    instalado
+  ✓  hook/post-commit      instalado
+
+  ✓  Worklogs pendientes   ninguno
+  ✓  Sesiones activas      1
+  ✓  config.json           min_track=2m  stale=48h  target=develop
+
+─────────────────────────────────────────────────────
+  ✓  Todo OK. El tracker está listo.
 ```
 
 ---
 
-### `python tracker.py log`
+### `tracker log`
 Resumen de horas por tarea de la semana actual (lunes a domingo).
 
 ---
 
-### `python tracker.py mr`
+### `tracker mr`
 Crea una MR en GitLab para la rama actual en modo **draft**:
 
 1. Detecta la rama actual y extrae el número de tarea Jira
@@ -181,17 +220,17 @@ Crea una MR en GitLab para la rama actual en modo **draft**:
 6. Crea la MR en GitLab apuntando a `develop` (o a la rama padre si es encadenada)
 
 ```bash
-python tracker.py mr
+tracker mr
 ```
 
 ---
 
-### `python tracker.py mr --ready`
+### `tracker mr --ready`
 Quita el estado draft de la MR y la marca como lista para review.
 Transiciona la tarea en Jira a "En revisión".
 
 ```bash
-python tracker.py mr --ready
+tracker mr --ready
 ```
 
 ---
@@ -211,33 +250,33 @@ Fuerza el reintento de todos los tiempos pendientes.
 
 ---
 
-### `python tracker.py mrs`
+### `tracker mrs`
 Lista todas las MRs abiertas del proyecto con su estado, reviewer asignado y tiempo sin actividad.
 
 ---
 
-### `python tracker.py stale`
+### `tracker stale`
 Lista las MRs sin actividad durante más de X horas (configurable en `config.json`).
 
 ```bash
-python tracker.py stale            # solo lista
-python tracker.py stale --notify   # lista y envía notificación
+tracker stale            # solo lista
+tracker stale --notify   # lista y envía notificación
 ```
 
 ---
 
-### `python tracker.py stack <nueva-rama>`
+### `tracker stack <nueva-rama>`
 Crea una nueva rama apilada sobre la actual (en lugar de sobre `develop`).
 
 ```bash
 # Estando en feature/QMS-123-login
-python tracker.py stack feature/QMS-124-permisos
+tracker stack feature/QMS-124-permisos
 
 # Crea feature/QMS-124-permisos desde feature/QMS-123-login
 # y registra la relación padre→hijo
 ```
 
-### `python tracker.py stack --list`
+### `tracker stack --list`
 Muestra el árbol de ramas encadenadas con el estado de cada MR en GitLab.
 
 ```
@@ -248,11 +287,11 @@ Stack tree for: /home/user/mi-proyecto
         └── feature/QMS-125-dashboard (sin MR)
 ```
 
-### `python tracker.py stack --update <rama-mergeada>`
+### `tracker stack --update <rama-mergeada>`
 Cuando se mergea una MR padre, actualiza el target de las MRs hijas a `develop` y hace rebase.
 
 ```bash
-python tracker.py stack --update feature/QMS-123-login
+tracker stack --update feature/QMS-123-login
 ```
 
 ---
@@ -274,26 +313,26 @@ develop
 git checkout -b feature/QMS-123-login
 
 # Trabajas... haces commits... y creas la MR
-python tracker.py mr
+tracker mr
 
 # 2. Mientras QMS-123 está en review, comienzas QMS-124
 #    Estando en feature/QMS-123-login:
-python tracker.py stack feature/QMS-124-permisos
+tracker stack feature/QMS-124-permisos
 # → Crea la rama desde QMS-123, no desde develop
 # → Registra la relación padre→hijo
 
 # 3. Trabajas en QMS-124, creas su MR
-python tracker.py mr
+tracker mr
 # → El target de esta MR será feature/QMS-123-login
 # → La descripción incluye el link a la MR padre
 
 # 4. Se mergea QMS-123. Actualiza QMS-124 automáticamente:
-python tracker.py stack --update feature/QMS-123-login
+tracker stack --update feature/QMS-123-login
 # → Cambia el target de !45 a develop
 # → Hace rebase de feature/QMS-124-permisos sobre develop
 
 # 5. Ver el árbol en cualquier momento
-python tracker.py stack --list
+tracker stack --list
 ```
 
 ---
@@ -334,9 +373,20 @@ Los nombres de estado deben coincidir **exactamente** con los configurados en tu
 
 ## Notificaciones de MRs obsoletas
 
-Configura `notify_channel` en `config.json`:
+Configura `notify_channel` en `config.json`. El tracker detecta el tipo de canal automáticamente.
 
-**Slack (webhook):**
+**Microsoft Teams (Incoming Webhook):**
+```json
+"notify_channel": "https://miempresa.webhook.office.com/webhookb2/..."
+```
+Se envían como **MessageCards**: cada MR aparece como sección con título, reviewer, tiempo sin actividad y enlace directo a la MR.
+
+Para crear el webhook en Teams:
+1. Canal de Teams → `···` → **Conectores** → **Incoming Webhook** → Configurar
+2. Dale un nombre (ej: `git-jira-tracker`) y copia la URL
+3. Pégala en `notify_channel`
+
+**Slack (Incoming Webhook):**
 ```json
 "notify_channel": "https://hooks.slack.com/services/T.../B.../xxx"
 ```
@@ -348,18 +398,18 @@ Configura `notify_channel` en `config.json`:
 
 Luego ejecuta:
 ```bash
-python tracker.py stale --notify
+tracker stale --notify
 ```
 
 Para automatizarlo, añade a cron (Mac/Linux):
 ```bash
 # Cada día a las 9:00
-0 9 * * * cd ~/git-jira-tracker && python3 tracker.py stale --notify
+0 9 * * * tracker stale --notify
 ```
 
-En Windows (Task Scheduler), crea una tarea que ejecute:
+En Windows, crea una tarea en Task Scheduler que ejecute:
 ```
-py C:\git-jira-tracker\tracker.py stale --notify
+tracker stale --notify
 ```
 
 ---

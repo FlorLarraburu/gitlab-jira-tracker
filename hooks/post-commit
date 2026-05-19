@@ -6,6 +6,9 @@
 # Escape hatch
 [ -n "$JIRA_TRACKER_DISABLED" ] && exit 0
 
+# ── Capture repo root BEFORE any cd ──────────────────────────────────────────
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+
 # ── Locate Python ────────────────────────────────────────────────────────────
 find_python() {
     if [ -n "$TRACKER_PYTHON" ] && [ -f "$TRACKER_PYTHON" ]; then
@@ -36,9 +39,7 @@ PYTHON_CMD="$(find_python)"
 
 # ── Locate tracker.py ────────────────────────────────────────────────────────
 if [ -z "$TRACKER_HOME" ]; then
-    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
     for candidate in \
-        "$REPO_ROOT/tracker.py" \
         "$HOME/git-jira-tracker/tracker.py" \
         "/usr/local/lib/git-jira-tracker/tracker.py"; do
         if [ -f "$candidate" ]; then
@@ -53,7 +54,7 @@ fi
 # ── Run tracker ───────────────────────────────────────────────────────────────
 (
     cd "$TRACKER_HOME" || exit 0
-    "$PYTHON_CMD" tracker.py _hook_commit 2>/dev/null
+    "$PYTHON_CMD" tracker.py _hook_commit "$REPO_ROOT" 2>/dev/null
 ) || true
 
 exit 0
