@@ -1,0 +1,13 @@
+{
+  "default_target_branch": "develop",
+  "min_track_minutes": 2,
+  "stale_hours": 48,
+  "notify_channel": "",
+  "jira_statuses": {
+    "in_progress": "En progreso",
+    "in_review": "En revisión",
+    "in_review_draft": "",
+    "done": "Hecho"
+  },
+  "branch_pattern": "^(feature|fix|chore)/([A-Z]+-[0-9]+)-.*$"
+}

@@ -1,0 +1,59 @@
+#!/bin/sh
+# git-jira-tracker — post-commit hook
+# Saves partial time on every commit so it is never lost.
+# This hook MUST NOT block git operations on tracker failure.
+
+# Escape hatch
+[ -n "$JIRA_TRACKER_DISABLED" ] && exit 0
+
+# ── Locate Python ────────────────────────────────────────────────────────────
+find_python() {
+    if [ -n "$TRACKER_PYTHON" ] && [ -f "$TRACKER_PYTHON" ]; then
+        echo "$TRACKER_PYTHON"
+        return
+    fi
+    for cmd in python3 python py; do
+        if command -v "$cmd" >/dev/null 2>&1; then
+            echo "$cmd"
+            return
+        fi
+    done
+    for path in \
+        "/c/Python312/python.exe" \
+        "/c/Python311/python.exe" \
+        "/c/Python310/python.exe" \
+        "$LOCALAPPDATA/Programs/Python/Python312/python.exe" \
+        "$LOCALAPPDATA/Programs/Python/Python311/python.exe"; do
+        if [ -f "$path" ]; then
+            echo "$path"
+            return
+        fi
+    done
+}
+
+PYTHON_CMD="$(find_python)"
+[ -n "$PYTHON_CMD" ] || exit 0
+
+# ── Locate tracker.py ────────────────────────────────────────────────────────
+if [ -z "$TRACKER_HOME" ]; then
+    REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
+    for candidate in \
+        "$REPO_ROOT/tracker.py" \
+        "$HOME/git-jira-tracker/tracker.py" \
+        "/usr/local/lib/git-jira-tracker/tracker.py"; do
+        if [ -f "$candidate" ]; then
+            TRACKER_HOME="$(dirname "$candidate")"
+            break
+        fi
+    done
+fi
+
+[ -n "$TRACKER_HOME" ] && [ -f "$TRACKER_HOME/tracker.py" ] || exit 0
+
+# ── Run tracker ───────────────────────────────────────────────────────────────
+(
+    cd "$TRACKER_HOME" || exit 0
+    "$PYTHON_CMD" tracker.py _hook_commit 2>/dev/null
+) || true
+
+exit 0
