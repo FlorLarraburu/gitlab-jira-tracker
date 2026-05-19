@@ -284,25 +284,75 @@ mkdir -p "$HOME/.jira-tracker"
 success "Directorio de datos: ~/.jira-tracker/"
 
 # ─────────────────────────────────────────────────────────────────────────────
+header "7. Instalando autocompletado..."
+# ─────────────────────────────────────────────────────────────────────────────
+SHELL_NAME="$(basename "${SHELL:-bash}")"
+
+install_completion_bash() {
+    local RC="$HOME/.bashrc"
+    [ -f "$HOME/.bash_profile" ] && RC="$HOME/.bash_profile"
+    local LINE="source \"$TRACKER_HOME/completions/tracker.bash\""
+    if grep -q "git-jira-tracker" "$RC" 2>/dev/null; then
+        info "Bash completion ya instalado"
+    else
+        echo "" >> "$RC"
+        echo "# git-jira-tracker completion" >> "$RC"
+        echo "$LINE" >> "$RC"
+        success "Bash completion añadido a $RC"
+        info    "Reinicia el terminal o ejecuta: source $RC"
+    fi
+}
+
+install_completion_zsh() {
+    local COMP_DIR="$HOME/.zsh/completions"
+    mkdir -p "$COMP_DIR"
+    local TARGET="$COMP_DIR/_tracker"
+    if [ -L "$TARGET" ] || [ -f "$TARGET" ]; then
+        info "Zsh completion ya instalado en $TARGET"
+    else
+        ln -s "$TRACKER_HOME/completions/_tracker" "$TARGET"
+        success "Zsh completion instalado: $TARGET"
+    fi
+    # Ensure fpath and compinit are in .zshrc
+    local ZSHRC="$HOME/.zshrc"
+    if ! grep -q "zsh/completions" "$ZSHRC" 2>/dev/null; then
+        echo "" >> "$ZSHRC"
+        echo "# git-jira-tracker completion" >> "$ZSHRC"
+        echo "fpath=(\$HOME/.zsh/completions \$fpath)" >> "$ZSHRC"
+        echo "autoload -Uz compinit && compinit" >> "$ZSHRC"
+        info "Añadido fpath a $ZSHRC — reinicia el terminal para activar"
+    fi
+}
+
+case "$SHELL_NAME" in
+    zsh)  install_completion_zsh ;;
+    bash) install_completion_bash ;;
+    *)    warn "Shell '$SHELL_NAME' no reconocido. Instala el completion manualmente:"
+          warn "  Bash: source $TRACKER_HOME/completions/tracker.bash"
+          warn "  Zsh:  copia/enlaza $TRACKER_HOME/completions/_tracker a tu fpath" ;;
+esac
+
+# ─────────────────────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${GREEN}╔══════════════════════════════════════════════════════╗${RESET}"
 echo -e "${BOLD}${GREEN}║  Instalación completada.                             ║${RESET}"
 echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${RESET}"
 echo ""
 echo -e "${BOLD}Comandos disponibles:${RESET}"
-echo "  python tracker.py status          — Tiempo de hoy y sesión activa"
-echo "  python tracker.py log             — Resumen de horas de la semana"
-echo "  python tracker.py mr              — Crear MR en GitLab (draft)"
-echo "  python tracker.py mr --ready      — Marcar MR como lista para review"
-echo "  python tracker.py stack <rama>    — Crear rama encadenada"
-echo "  python tracker.py stack --list    — Ver árbol de ramas"
-echo "  python tracker.py stack --update <rama-mergeada>"
-echo "  python tracker.py stale           — Ver MRs obsoletas"
-echo "  python tracker.py stale --notify  — Notificar MRs obsoletas"
-echo "  python tracker.py mrs             — Listar todas las MRs abiertas"
-echo "  python tracker.py pending         — Ver tiempos pendientes"
-echo "  python tracker.py pending --retry — Reintentar imputación"
-echo "  python tracker.py sync            — Sincronizar pendientes con Jira"
+echo "  tracker status           — Tiempo de hoy y sesión activa"
+echo "  tracker stop             — Pausar el timer"
+echo "  tracker restart          — Reanudar el timer"
+echo "  tracker log              — Resumen de la semana"
+echo "  tracker mr               — Crear MR en GitLab (draft)"
+echo "  tracker mr --ready       — Marcar MR lista para review"
+echo "  tracker stack <rama>     — Crear rama encadenada"
+echo "  tracker stack --list     — Ver árbol de ramas"
+echo "  tracker stale            — Ver MRs obsoletas"
+echo "  tracker stale --notify   — Notificar MRs obsoletas"
+echo "  tracker mrs              — Listar MRs abiertas"
+echo "  tracker pending --retry  — Reintentar imputación pendiente"
+echo "  tracker doctor           — Comprobar configuración"
+echo "  tracker help             — Ver todos los comandos"
 echo ""
-echo -e "${CYAN}Archivos de datos en ~/.jira-tracker/${RESET}"
+echo -e "${CYAN}Datos en ~/.jira-tracker/   •   Autocompletado: Tab después de 'tracker '${RESET}"
 echo ""

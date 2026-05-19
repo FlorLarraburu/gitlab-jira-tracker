@@ -1,0 +1,68 @@
+#compdef tracker
+# git-jira-tracker — Zsh completion
+# Install: copy or symlink to a directory in your $fpath, then run compinit
+#   mkdir -p ~/.zsh/completions
+#   ln -s ~/git-jira-tracker/completions/_tracker ~/.zsh/completions/_tracker
+#   echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+#   echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+# Or let install.sh do it automatically.
+
+_tracker() {
+    local state
+
+    _arguments \
+        '1: :->command' \
+        '*: :->args'
+
+    case $state in
+        command)
+            local commands
+            commands=(
+                'mr:Crear MR en GitLab para la rama actual'
+                'stack:Gestión de ramas encadenadas (stacking)'
+                'stale:Listar MRs sin actividad'
+                'status:Tiempo de hoy y sesión activa'
+                'stop:Pausar el timer sin imputar'
+                'restart:Reanudar el timer pausado'
+                'log:Resumen de horas de la semana'
+                'pending:Ver worklogs pendientes de imputar'
+                'sync:Forzar sincronización de pendientes con Jira'
+                'mrs:Listar todas las MRs abiertas del proyecto'
+                'doctor:Comprobar configuración y conectividad'
+                'help:Mostrar todos los comandos'
+            )
+            _describe 'comando' commands
+            ;;
+
+        args)
+            case $words[2] in
+                mr)
+                    _arguments \
+                        '--ready[Quitar draft y marcar lista para review]'
+                    ;;
+                stack)
+                    _arguments \
+                        '--list[Mostrar árbol de ramas encadenadas]' \
+                        '--update[Actualizar MRs hijas tras merge de]:rama mergeada:->branches' \
+                        '--mr[Crear MR automáticamente tras crear la rama]' \
+                        '1::nueva rama:'
+                    if [[ $state == branches ]]; then
+                        local branches
+                        branches=(${(f)"$(git branch --format='%(refname:short)' 2>/dev/null)"})
+                        _describe 'rama' branches
+                    fi
+                    ;;
+                stale)
+                    _arguments \
+                        '--notify[Enviar notificación por el canal configurado]'
+                    ;;
+                pending)
+                    _arguments \
+                        '--retry[Reintentar imputación ahora]'
+                    ;;
+            esac
+            ;;
+    esac
+}
+
+_tracker "$@"

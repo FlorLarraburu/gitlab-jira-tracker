@@ -254,6 +254,36 @@ def cmd_stale(args) -> None:
 # Command: status
 # ---------------------------------------------------------------------------
 
+def cmd_stop(_args) -> None:
+    result = tt.pause_tracking()
+    if not result:
+        current = tt.get_current_state()
+        if current and current.get("paused"):
+            print(f"[tracker] Ya está pausado: {current['jira_key']} — "
+                  f"{_fmt(current['elapsed_seconds'])} acumulados.")
+        else:
+            print("[tracker] No hay ninguna sesión activa.")
+        return
+    print(f"[tracker] Timer pausado — {result['jira_key']} — "
+          f"{_fmt(result['accumulated_seconds'])} acumulados.")
+    print("          Usa 'tracker restart' para reanudar.")
+
+
+def cmd_restart(_args) -> None:
+    result = tt.resume_tracking()
+    if not result:
+        current = tt.get_current_state()
+        if current and not current.get("paused"):
+            print(f"[tracker] Ya está corriendo: {current['jira_key']} — "
+                  f"{_fmt(current['elapsed_seconds'])}")
+        else:
+            print("[tracker] No hay ninguna sesión pausada.")
+            print("          Haz checkout a una rama con tarea Jira para empezar.")
+        return
+    print(f"[tracker] Timer reanudado — {result['jira_key']} "
+          f"({_fmt(result['partial_seconds'])} ya acumulados)")
+
+
 def cmd_status(_args) -> None:
     today   = tt.get_today_summary()
     current = tt.get_current_state()
@@ -269,11 +299,14 @@ def cmd_status(_args) -> None:
     if not current:
         print("  No hay tracking activo.")
     else:
-        repo_name = Path(current["repo"]).name if current.get("repo") else "?"
-        print(f"  Tarea:   {current['jira_key']}")
+        repo_name  = Path(current["repo"]).name if current.get("repo") else "?"
+        paused_tag = "  ⏸ PAUSADO" if current.get("paused") else ""
+        print(f"  Tarea:   {current['jira_key']}{paused_tag}")
         print(f"  Rama:    {current['branch']}")
         print(f"  Repo:    {repo_name}")
         print(f"  Tiempo:  {_fmt(current['elapsed_seconds'])}")
+        if current.get("paused"):
+            print("  → 'tracker restart' para reanudar")
     print()
 
 
@@ -318,6 +351,51 @@ def cmd_pending(args) -> None:
 # ---------------------------------------------------------------------------
 # Command: sync
 # ---------------------------------------------------------------------------
+
+def cmd_help(_args) -> None:
+    print("""
+git-jira-tracker — Comandos disponibles
+────────────────────────────────────────────────────────────────
+
+  TIEMPO
+  tracker status            Tiempo de hoy y sesión activa
+  tracker log               Resumen de la semana actual
+  tracker stop              Pausa el timer (sin imputar a Jira)
+  tracker restart           Reanuda el timer pausado
+  tracker pending           Muestra worklogs pendientes de imputar
+  tracker pending --retry   Reintenta imputar los pendientes
+  tracker sync              Fuerza sincronización con Jira
+
+  MERGE REQUESTS
+  tracker mr                Crea MR en GitLab (modo draft)
+  tracker mr --ready        Quita draft, marca lista para review
+  tracker mrs               Lista todas las MRs abiertas
+
+  RAMAS ENCADENADAS
+  tracker stack <rama>      Nueva rama apilada sobre la actual
+  tracker stack --list      Árbol de ramas encadenadas
+  tracker stack --update <rama-mergeada>
+
+  MRSOBSOLETAS
+  tracker stale             Lista MRs sin actividad > stale_hours
+  tracker stale --notify    Envía notificación (Teams/Slack/email)
+
+  DIAGNÓSTICO
+  tracker doctor            Comprueba configuración y conectividad
+  tracker help              Muestra esta ayuda
+
+  DESACTIVAR TEMPORALMENTE
+  export JIRA_TRACKER_DISABLED=1   (en el shell actual)
+  git commit --no-verify           (un commit concreto)
+
+  FICHEROS
+  ~/.jira-tracker/state.json       Sesión activa
+  ~/.jira-tracker/pending.json     Worklogs pendientes
+  ~/.jira-tracker/time_log.json    Historial de sesiones
+  config.json                      Configuración (umbral idle, target branch…)
+  .env                             Credenciales Jira / GitLab
+""")
+
 
 def cmd_sync(_args) -> None:
     print("Sincronizando tiempos pendientes con Jira...")
@@ -612,8 +690,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_stale.add_argument("--notify", action="store_true",
                          help="Enviar notificación por el canal configurado")
 
+    # stop / restart
+    sub.add_parser("stop",    help="Pausar el timer sin imputar a Jira")
+    sub.add_parser("restart", help="Reanudar el timer pausado")
+
     # status
-    sub.add_parser("status", help="Tiempo de hoy y sesiones activas (todos los repos)")
+    sub.add_parser("status", help="Tiempo de hoy y sesión activa")
 
     # log
     sub.add_parser("log", help="Resumen de horas de la semana actual")
@@ -629,8 +711,9 @@ def build_parser() -> argparse.ArgumentParser:
     # mrs
     sub.add_parser("mrs", help="Listar todas las MRs abiertas del proyecto")
 
-    # doctor
+    # doctor / help
     sub.add_parser("doctor", help="Comprobar configuración y conectividad")
+    sub.add_parser("help",   help="Mostrar todos los comandos disponibles")
 
     # Internal hook commands
     p_co = sub.add_parser("_hook_checkout", help=argparse.SUPPRESS)
@@ -657,11 +740,14 @@ def main() -> None:
         "stack":          cmd_stack,
         "stale":          cmd_stale,
         "status":         cmd_status,
+        "stop":           cmd_stop,
+        "restart":        cmd_restart,
         "log":            cmd_log,
         "pending":        cmd_pending,
         "sync":           cmd_sync,
         "mrs":            cmd_mrs,
         "doctor":         cmd_doctor,
+        "help":           cmd_help,
         "_hook_checkout": cmd_hook_checkout,
         "_hook_commit":   cmd_hook_commit,
     }

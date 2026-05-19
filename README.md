@@ -147,6 +147,24 @@ El patrón es configurable en `config.json` (`branch_pattern`). Si la rama no ti
 
 ---
 
+## Autocompletado
+
+Tras la instalación, escribe `tracker ` y pulsa **Tab** para ver todos los comandos. Funciona con bash y zsh. El instalador lo configura automáticamente.
+
+Si necesitas activarlo manualmente:
+```bash
+# Bash
+echo "source ~/git-jira-tracker/completions/tracker.bash" >> ~/.bashrc
+
+# Zsh
+mkdir -p ~/.zsh/completions
+ln -s ~/git-jira-tracker/completions/_tracker ~/.zsh/completions/_tracker
+echo 'fpath=(~/.zsh/completions $fpath)' >> ~/.zshrc
+echo 'autoload -Uz compinit && compinit' >> ~/.zshrc
+```
+
+---
+
 ## Comandos disponibles
 
 Tras la instalación el comando es simplemente `tracker`. Si por algún motivo no está en el PATH, el fallback siempre es `python tracker.py <comando>`.
@@ -166,7 +184,21 @@ Muestra el tiempo acumulado hoy y la sesión activa en este momento.
   Tiempo:  1h 30m
 ```
 
-**Solo hay un timer activo a la vez.** Cuando haces `git checkout` en cualquier repo, el timer anterior se para (y el tiempo se imputa) y arranca el nuevo. Esto es así por diseño: si tienes dos proyectos abiertos en VS Code pero solo estás trabajando activamente en uno, no hay forma de saber cuál es sin monitorizar el foco de ventanas a nivel de sistema operativo — demasiado intrusivo. La señal explícita del `checkout` es la más fiable.
+**Solo hay un timer activo a la vez.** Cuando haces `git checkout` en cualquier repo, el timer anterior se para (y el tiempo se imputa) y arranca el nuevo. Si tienes dos proyectos abiertos, el tracker no puede saber en cuál estás trabajando sin monitorizar el foco de ventanas a nivel de sistema — el `checkout` es la señal más fiable.
+
+**Detección de inactividad (idle gap)**
+
+El tracker mantiene un latido (`last_active_ts`) que se actualiza con cada commit y cada vez que ejecutas `tracker status` o `tracker log`. Si al hacer checkout el tiempo desde el último latido supera `idle_threshold_minutes` (default: 60 min), el tiempo muerto más allá del umbral se descarta:
+
+```
+Trabajas de 9:00 a 13:00, último status a las 12:55
+Te vas a comer. Vuelves a las 14:30 y haces checkout.
+  Tiempo desde último latido: 1h 35m > umbral 60min
+  Descartado:  35 minutos
+  Imputado:    4h 55m  (no las 5h 30m de reloj)
+```
+
+Para pausar el timer de forma explícita antes de una reunión o del almuerzo usa `tracker stop`. Para que el latido se renueve mientras trabajas sin hacer commits, basta con ejecutar `tracker status` de vez en cuando.
 
 ---
 
@@ -201,6 +233,36 @@ Diagnóstico completo del entorno. Útil para onboarding y troubleshooting.
 ─────────────────────────────────────────────────────
   ✓  Todo OK. El tracker está listo.
 ```
+
+---
+
+### `tracker stop`
+Pausa el timer en el momento actual. El tiempo acumulado se preserva pero **no se imputa** en Jira todavía. Usa esto cuando te vas a comer, a una reunión, o simplemente cuando sabes que vas a dejar el ordenador un rato.
+
+```bash
+tracker stop
+# [tracker] Timer pausado — QMS-123 — 1h 45m acumulados.
+#           Usa 'tracker restart' para reanudar.
+```
+
+`tracker status` muestra `⏸ PAUSADO` mientras el timer está detenido.
+
+---
+
+### `tracker restart`
+Reanuda un timer pausado con `tracker stop`. El tiempo acumulado antes de la pausa se conserva y el contador continúa desde donde se dejó.
+
+```bash
+tracker restart
+# [tracker] Timer reanudado — QMS-123 (1h 45m ya acumulados)
+```
+
+El timer también se reanuda automáticamente al hacer `git checkout` a la misma rama o al hacer `git commit`.
+
+---
+
+### `tracker help`
+Muestra todos los comandos disponibles con una descripción breve.
 
 ---
 
@@ -359,6 +421,7 @@ tracker stack --list
 |---|---|
 | `default_target_branch` | Rama destino por defecto para las MRs |
 | `min_track_minutes` | Tiempo mínimo para imputar (sesiones más cortas se ignoran) |
+| `idle_threshold_minutes` | Tiempo máximo sin actividad antes de descartar el tramo muerto (default: 60) |
 | `stale_hours` | Horas de inactividad para considerar una MR obsoleta |
 | `notify_channel` | Canal para notificaciones (ver sección siguiente) |
 | `jira_statuses.in_progress` | Nombre exacto del estado "en progreso" en tu Jira |
