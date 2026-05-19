@@ -221,7 +221,7 @@ def show_stack_tree(gitlab_client=None) -> None:
 def update_stacked_mrs(merged_branch: str, new_target: str, gitlab_client=None) -> None:
     """
     When merged_branch gets merged, update all direct children MRs to point
-    to new_target and optionally rebase.
+    to new_target and merge new_target into each child branch.
     """
     children = get_children(merged_branch)
     if not children:
@@ -248,10 +248,15 @@ def update_stacked_mrs(merged_branch: str, new_target: str, gitlab_client=None) 
         data[repo][child]["parent"] = new_target
         _save_stack(data)
 
-        # Attempt rebase
-        current = _current_branch()
-        code, _, err = _git_run("rebase", new_target, child)
+        # Attempt merge
+        original = _current_branch()
+        code, _, err = _git_run("checkout", child)
+        if code != 0:
+            print(f"  ✗ Could not checkout '{child}': {err}")
+            continue
+        code, _, err = _git_run("merge", new_target, "--no-edit")
         if code == 0:
-            print(f"  ✓ Rebased '{child}' onto '{new_target}'")
+            print(f"  ✓ Merged '{new_target}' into '{child}'")
         else:
-            print(f"  ✗ Rebase of '{child}' onto '{new_target}' failed (manual resolution needed): {err}")
+            print(f"  ✗ Merge of '{new_target}' into '{child}' failed (manual resolution needed): {err}")
+        _git_run("checkout", original)
